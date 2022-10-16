@@ -1,8 +1,9 @@
 import array
 
 class TAP:
-    def __init__(self, bus):
+    def __init__(self, bus, idcode):
         self.bus = bus
+        self.idcode = idcode
 
 class JTAG:
     def __init__(self, ll):
@@ -24,15 +25,36 @@ class JTAG:
                 ff_count = 0
             print(hex(b))
             all_bytes.append(b)
+        # ID Codes
         print([hex(b) for b in all_bytes])
 
         self._shift_to_run()
         self.select_ir()
         self.select_shift()
 
+        # Default instruction register values and transistion to bypass
         for i in range(8):
             b = self.read_byte()
             print(hex(b))
+
+        # In bypass mode now.
+        self._shift_to_run()
+
+        self.select_dr()
+        self.select_shift()
+        # Send 8 1s while we read.
+        self.read_byte()
+        # Send a zero
+        self.ll.write(tck=True, tms=False, tdi=False)
+        self.ll.write(tck=False, tms=False, tdi=False)
+        device_count = 0
+        while self.ll.read_tdo():
+            self.ll.write(tck=True, tms=False, tdi=True)
+            self.ll.write(tck=False, tms=False, tdi=True)
+            device_count += 1
+        self.ll.write(tck=False, tms=False, tdi=False)
+        self._shift_to_run()
+        print(device_count, "devices")
 
 
     def reset(self):
@@ -51,19 +73,15 @@ class JTAG:
 
 
     def _send_tms_one(self):
-        self.ll.write(tck=False, tms=True, tdi=False)
-        self.ll.write(tck=True, tms=True, tdi=False)
-
-    def _send_tms_one(self):
-        self.ll.write(tck=False, tms=True, tdi=False)
-        self.ll.write(tck=True, tms=True, tdi=False)
+        self.ll.write(tck=False, tms=True, tdi=True)
+        self.ll.write(tck=True, tms=True, tdi=True)
 
     def _send_tms_zero(self):
-        self.ll.write(tck=False, tms=False, tdi=False)
-        self.ll.write(tck=True, tms=False, tdi=False)
+        self.ll.write(tck=False, tms=False, tdi=True)
+        self.ll.write(tck=True, tms=False, tdi=True)
 
     def _idle_bus(self):
-        self.ll.write(tck=False, tms=False, tdi=False)
+        self.ll.write(tck=False, tms=False, tdi=True)
 
     def select_dr(self): # From run test / idle
         self._send_tms_one()

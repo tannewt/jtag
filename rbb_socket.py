@@ -9,7 +9,6 @@ class RemoteSocket(RemoteBitbangEncoder):
     def write_character(self, c: int):
         self.buf[0] = c
         sent = self.socket.send(self.buf)
-        print(sent, self.buf)
 
     def read_character(self) -> int:
         self.socket.recv_into(self.buf)

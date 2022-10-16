@@ -3,6 +3,8 @@ import rbb_socket
 import sys
 import jtag
 
+import jtag_debug
+
 port = int(sys.argv[-1])
 
 sock = socket.create_connection(("localhost", port))
@@ -13,6 +15,6 @@ remote = rbb_socket.RemoteSocket(sock)
 remote.blink_on()
 remote.blink_off()
 
-jtag_top = jtag.JTAG(remote)
+jtag_top = jtag.JTAG(jtag_debug.Debug(remote))
 
 sock.close()
