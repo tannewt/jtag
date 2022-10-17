@@ -56,8 +56,10 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
     dtmcs_abits = FixedBits(6, 4)
     dtmcs_version = FixedBits(4, 0)
 
-    def __init__(self, tap):
+    def __init__(self, tap, *, ir_dtmcs=0x10, ir_dmi=0x11):
         self.tap = tap
+        self.ir_dtmcs = ir_dtmcs
+        self.ir_dmi = ir_dmi
         self.dtmcs_buf = bytearray(4)
 
         self.dmi_len = self.dtmcs_abits + 34
@@ -67,12 +69,17 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
 
     @property
     def dtmcs(self):
-        self.tap.ir = 0x10
+        self.tap.ir = self.ir_dtmcs
         self.tap.read_dr_into(self.dtmcs_buf)
         return struct.unpack("<I", self.dtmcs_buf)[0]
 
+    @dtmsc.setter(self, value):
+        self.tap.ir = self.ir_dtmcs
+        struct.pack_into("<I", self.dtmcs_buf, value)
+        self.tap.write_dr(value)
+
     def __getitem__(self, addr):
-        self.tap.ir = 0x11
+        self.tap.ir = self.ir_dmi
         self.tap.read_dr_into(self.dmi_buf, bitcount=self.dmi_len)
         return bytes(self.dmi_buf)
 

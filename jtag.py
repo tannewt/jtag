@@ -36,6 +36,13 @@ class TAP:
             buf[i] = self.bus.read_byte(tdi=False)
         self.bus._shift_to_run()
 
+    def write_dr(self, buf, *, dr_len=None):
+        if dr_len is None:
+            dr_len = len(buf) * 8
+        self.bus.select_dr()
+        self.bus.select_shift()
+        self.bus.write(buf, bitcount=dr_len)
+
 class JTAG:
     def __init__(self, ll):
         self.ll = ll
