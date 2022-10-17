@@ -11,5 +11,5 @@ class RemoteSocket(RemoteBitbangEncoder):
         sent = self.socket.send(self.buf)
 
     def read_character(self) -> int:
-        self.socket.recv_into(self.buf)
+        count = self.socket.recv_into(self.buf)
         return self.buf[0]

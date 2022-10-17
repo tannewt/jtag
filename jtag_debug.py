@@ -28,7 +28,7 @@ class Debug(LowLevelJTAG):
     def __init__(self, ll):
         self.ll = ll
         self.current_state = "Test-Logic-Reset"
-        self.last_clock = False
+        self.last_clock = None
 
     def blink_on(self):
         print("Blink on")
@@ -48,11 +48,15 @@ class Debug(LowLevelJTAG):
         self.ll.quit()
 
     def write(self, *, tck, tms, tdi):
-        if not self.last_clock and tck:
-            next_state = STATE_MACHINE[self.current_state][tms]
-            if next_state != self.current_state:
-                print(next_state)
-            self.current_state = next_state
+        print("write tck:", tck, "tms:", tms, "tdi:", tdi)
+        if self.last_clock is not None:
+            if not self.last_clock and tck:
+                next_state = STATE_MACHINE[self.current_state][tms]
+                if next_state != self.current_state:
+                    print(next_state)
+                self.current_state = next_state
+            if self.last_clock == tck:
+                raise RuntimeError("Clock must change between each write.")
         self.last_clock = tck
         self.ll.write(tck=tck, tms=tms, tdi=tdi)
 
