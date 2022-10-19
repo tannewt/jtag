@@ -20,4 +20,8 @@ jtag_top = jtag.JTAG(remote)
 
 riscv_dm = riscv_jtag_dtm.JTAG_DTM(jtag_top.taps[0])
 
+print(hex(riscv_dm[0x12]))
+print(hex(riscv_dm[0x11]))
+
+
 sock.close()

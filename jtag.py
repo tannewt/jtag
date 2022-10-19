@@ -34,14 +34,22 @@ class TAP:
         dr_bytes = dr_len // 8 + (1 if dr_len % 8 > 0 else 0)
         for i in range(dr_bytes):
             buf[i] = self.bus.read_byte(tdi=False)
+        print("Read DR:", buf, dr_len)
         self.bus._shift_to_run()
 
     def write_dr(self, buf, *, dr_len=None):
         if dr_len is None:
-            dr_len = len(buf) * 8
+            if isinstance(buf, int):
+                dr_len = 32
+            else:
+                dr_len = len(buf) * 8
         self.bus.select_dr()
         self.bus.select_shift()
+        print("DR:", buf, dr_len)
         self.bus.write(buf, bitcount=dr_len)
+
+    def idle_clock(self):
+        self.bus._send_tms_zero()
 
 class JTAG:
     def __init__(self, ll):
@@ -145,9 +153,12 @@ class JTAG:
 
     def write(self, b, *, bitcount=8):
         for i in range(bitcount):
-            bit = (b & (1 << i)) != 0
+            if isinstance(b, int):
+                bit = (b & (1 << i)) != 0
+            else:
+                bit = (b[i // 8] & (1 << (i % 8))) != 0
             last_bit = i == bitcount - 1
-            self.ll.write(tck=False, tms=i==last_bit, tdi=bit)
+            self.ll.write(tck=False, tms=last_bit, tdi=bit)
             self.ll.write(tck=True, tms=last_bit, tdi=bit)
         self._send_tms_one() # to update
         self._send_tms_zero() # to run test/idle

@@ -56,6 +56,16 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
     dtmcs_abits = FixedBits(6, 4)
     dtmcs_version = FixedBits(4, 0)
 
+    OP_IGNORE = 0x0
+    OP_READ = 0x1
+    OP_WRITE = 0x2
+    OP_RESERVED = 0x3
+
+    OP_STATUS_OK = 0x0
+    OP_STATUS_RESERVED = 0x1
+    OP_STATUS_FAILED = 0x2
+    OP_STATUS_IGNORED = 0x3
+
     def __init__(self, tap, *, ir_dtmcs=0x10, ir_dmi=0x11):
         self.tap = tap
         self.ir_dtmcs = ir_dtmcs
@@ -63,6 +73,8 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
         self.dtmcs_buf = bytearray(4)
 
         self.dmi_len = self.dtmcs_abits + 34
+
+        print(self.dtmcs_abits, self.dtmcs_idle)
 
         dmi_bytes = self.dmi_len // 8 + (1 if self.dmi_len % 8 > 0 else 0)
         self.dmi_buf = bytearray(dmi_bytes)
@@ -73,18 +85,71 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
         self.tap.read_dr_into(self.dtmcs_buf)
         return struct.unpack("<I", self.dtmcs_buf)[0]
 
-    @dtmsc.setter(self, value):
+    @dtmcs.setter
+    def dtmcs(self, value):
         self.tap.ir = self.ir_dtmcs
-        struct.pack_into("<I", self.dtmcs_buf, value)
+        struct.pack_into("<I", self.dtmcs_buf, 0, value)
         self.tap.write_dr(value)
 
-    def __getitem__(self, addr):
+    def _unpack_dmi(self, buf):
+        op = buf[0] & 0x03
+        data = buf[0] >> 2
+        data |= buf[1] << 6
+        data |= buf[2] << 14
+        data |= buf[3] << 22
+        data |= (buf[4] & 0x03) << 30
+        address = buf[4] >> 2
+        offset = 6
+        i = 5
+        remaining_bits = self.dtmcs_abits - offset
+        while remaining_bits > 0:
+            bits = min(8, remaining_bits)
+            address |= (buf[i] & ((1 << bits) - 1)) << offset
+            i += 1
+            remaining_bits -= bits
+            offset += bits
+        return address, data, op
+
+    def _pack_dmi(self, address, data, op, buf):
+        print(hex(address), hex(address << 2), hex(data), hex(op))
+        buf[0] = op
+        buf[0] |= (data & 0x3f) << 2
+        buf[1] = (data >> 6) & 0xff
+        buf[2] = (data >> 14) & 0xff
+        buf[3] = (data >> 22) & 0xff
+        buf[4] = (data >> 30) & 0x03
+        buf[4] |= (address & 0x3f) << 2
+        offset = 6
+        i = 5
+        remaining_bits = self.dtmcs_abits - offset
+        while remaining_bits > 0:
+            bits = min(8, remaining_bits)
+            buf[i] = (address >> offset) & 0xff
+            i += 1
+            remaining_bits -= bits
+            offset += bits
+
+    def _run_transaction(self, addr, op, value=0):
         self.tap.ir = self.ir_dmi
-        self.tap.read_dr_into(self.dmi_buf, bitcount=self.dmi_len)
-        return bytes(self.dmi_buf)
+        self._pack_dmi(addr, value, op, self.dmi_buf)
+        self.tap.write_dr(self.dmi_buf, dr_len=self.dmi_len)
+        for i in range(self.dtmcs_idle + 2):
+            self.tap.idle_clock()
+        self.tap.read_dr_into(self.dmi_buf, dr_len=self.dmi_len)
+        _, data, op = self._unpack_dmi(self.dmi_buf)
+        
+        if op != 0:
+            self.dtmcs_dmireset = True
+            raise RuntimeError("Operation failed")
+
+        return data
+
+
+    def __getitem__(self, addr):
+        return self._run_transaction(addr, JTAG_DTM.OP_READ)
 
     def __setitem__(self, addr, value):
-        pass
-
+        self._run_transaction(addr, JTAG_DTM.OP_WRITE, value)
+    
     def __len__(self):
         return 1 << self.dtmcs_abits
