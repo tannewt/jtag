@@ -77,7 +77,10 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
         print(self.dtmcs_abits, self.dtmcs_idle)
 
         dmi_bytes = self.dmi_len // 8 + (1 if self.dmi_len % 8 > 0 else 0)
-        self.dmi_buf = bytearray(dmi_bytes)
+        self.dmi_buf_out = bytearray(dmi_bytes)
+        self.dmi_buf_in = bytearray(dmi_bytes)
+
+        self.idle = self.dtmcs_idle
 
     @property
     def dtmcs(self):
@@ -130,17 +133,23 @@ class JTAG_DTM: # Implements DebugModuleInterface (aka bus)
             offset += bits
 
     def _run_transaction(self, addr, op, value=0):
-        self.tap.ir = self.ir_dmi
-        self._pack_dmi(addr, value, op, self.dmi_buf)
-        self.tap.write_dr(self.dmi_buf, dr_len=self.dmi_len)
-        for i in range(self.dtmcs_idle + 2):
-            self.tap.idle_clock()
-        self.tap.read_dr_into(self.dmi_buf, dr_len=self.dmi_len)
-        _, data, op = self._unpack_dmi(self.dmi_buf)
-        
-        if op != 0:
-            self.dtmcs_dmireset = True
-            raise RuntimeError("Operation failed")
+        op = 1
+        self._pack_dmi(addr, value, op, self.dmi_buf_out)
+        while op != 0:
+            self.tap.ir = self.ir_dmi
+            self.tap.write_dr(self.dmi_buf_out, dr_len=self.dmi_len)
+            for i in range(self.idle):
+                self.tap.idle_clock()
+            self.tap.read_dr_into(self.dmi_buf_in, dr_len=self.dmi_len)
+            _, data, op = self._unpack_dmi(self.dmi_buf_in)
+            
+            if op != 0:
+                self.dtmcs_dmireset = True
+                if op == 2:
+                    raise RuntimeError("Operation failed")
+                if op == 3:
+                    self.idle += 1
+                    print(self.idle)
 
         return data
 

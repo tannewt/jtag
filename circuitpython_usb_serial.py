@@ -1,10 +1,14 @@
 import usb_serial
 import jtag
+import sys
 from adafruit_board_toolkit import circuitpython_serial
 
 ports = circuitpython_serial.data_comports()
 
 print(ports)
+
+if not ports:
+    sys.exit(1)
 
 device = None
 for p in ports:

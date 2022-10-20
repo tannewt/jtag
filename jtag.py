@@ -11,6 +11,7 @@ class TAP:
 
     @property
     def ir(self):
+        print("read ir")
         self.bus.select_ir()
         self.bus.select_shift()
         b = self.bus.read_byte()
@@ -19,6 +20,7 @@ class TAP:
 
     @ir.setter
     def ir(self, value):
+        print("write ir")
         self.bus.select_ir()
         self.bus.select_shift()
         # TODO: shift out offset bits
@@ -34,7 +36,7 @@ class TAP:
         dr_bytes = dr_len // 8 + (1 if dr_len % 8 > 0 else 0)
         for i in range(dr_bytes):
             buf[i] = self.bus.read_byte(tdi=False)
-        print("Read DR:", buf, dr_len)
+        print("Read DR:", [hex(x) for x in reversed(buf)], dr_len)
         self.bus._shift_to_run()
 
     def write_dr(self, buf, *, dr_len=None):
@@ -45,7 +47,10 @@ class TAP:
                 dr_len = len(buf) * 8
         self.bus.select_dr()
         self.bus.select_shift()
-        print("DR:", buf, dr_len)
+        if isinstance(buf, int):
+            print("DR:", hex(buf), dr_len)
+        else:
+            print("DR:", [hex(x) for x in reversed(buf)], dr_len)
         self.bus.write(buf, bitcount=dr_len)
 
     def idle_clock(self):
