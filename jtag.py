@@ -1,6 +1,11 @@
 import array
 import struct
 
+IRLEN = {
+    0xdeadbeef: 0x5, # RISC-V sim
+    0x41111043: 0x8, # ECP5 25F
+}
+
 class TAP:
     def __init__(self, bus, idcode, irlen, *, irlen_offset=0):
         self.bus = bus
@@ -20,7 +25,7 @@ class TAP:
 
     @ir.setter
     def ir(self, value):
-        print("write ir")
+        print("write ir", hex(value), self.irlen)
         self.bus.select_ir()
         self.bus.select_shift()
         # TODO: shift out offset bits
@@ -113,7 +118,8 @@ class JTAG:
             idcode = struct.unpack_from("<I", all_bytes, offset=device*4)[0]
             print(hex(idcode))
             # TODO: Find a plugin that matches the idcode. We need the irlen. 
-            self.taps.append(TAP(self, idcode, 5))
+
+            self.taps.append(TAP(self, idcode, IRLEN[idcode]))
 
 
     def reset(self):
